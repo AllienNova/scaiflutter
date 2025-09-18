@@ -5,21 +5,30 @@ import 'package:go_router/go_router.dart';
 
 import '../core/app_theme.dart';
 import '../providers/app_state_provider.dart';
+import '../providers/call_recording_provider.dart';
 import '../services/call_service.dart';
+import '../services/recording_mode_service.dart';
+import '../services/live_analysis_service.dart';
 import '../widgets/protection_status_widget.dart';
 import '../widgets/quick_actions_widget.dart';
+import '../widgets/recording_control_widget.dart';
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
-  
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  @override
+  Widget build(BuildContext context) {
     final appState = ref.watch(appStateProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'SCAI Guard',
+          'ScamShieldAI',
           style: TextStyle(fontWeight: FontWeight.w600),
         ),
         backgroundColor: AppTheme.backgroundColor,
@@ -41,6 +50,8 @@ class HomeScreen extends ConsumerWidget {
           children: [
             _buildWelcomeSection(context),
             const SizedBox(height: 24),
+            RecordingControlWidget(),
+            const SizedBox(height: 24),
             ProtectionStatusWidget(),
             const SizedBox(height: 24),
             QuickActionsWidget(),
@@ -48,6 +59,7 @@ class HomeScreen extends ConsumerWidget {
           ],
         ),
       ),
+      floatingActionButton: _buildRecordingFAB(),
     );
   }
 
@@ -88,7 +100,7 @@ class HomeScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Welcome to SCAI',
+                      'Welcome to ScamShieldAI',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         color: Colors.white,
                         fontWeight: FontWeight.w600,
@@ -119,6 +131,109 @@ class HomeScreen extends ConsumerWidget {
     ).animate()
       .fadeIn(duration: 0.8.seconds)
       .slideY(begin: 0.2, end: 0);
+  }
+  Widget _buildRecordingFAB() {
+    return StreamBuilder<RecordingMode>(
+      stream: RecordingModeService.instance.modeStream,
+      builder: (context, modeSnapshot) {
+        return StreamBuilder<String>(
+          stream: RecordingModeService.instance.statusStream,
+          builder: (context, statusSnapshot) {
+            final currentMode = modeSnapshot.data ?? RecordingMode.manual;
+            final status = statusSnapshot.data ?? 'Ready';
+            final isRecording = status.contains('recording') || status.contains('Recording');
+
+            return FloatingActionButton.extended(
+              onPressed: () => _handleFABPress(currentMode, isRecording),
+              backgroundColor: isRecording ? Colors.red : AppTheme.primaryColor,
+              foregroundColor: Colors.white,
+              icon: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                child: isRecording
+                    ? const Icon(Icons.stop, key: ValueKey('stop'))
+                    : const Icon(Icons.mic, key: ValueKey('mic')),
+              ),
+              label: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                child: Text(
+                  isRecording ? 'Stop Recording' : 'Start Recording',
+                  key: ValueKey(isRecording ? 'stop' : 'start'),
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _handleFABPress(RecordingMode currentMode, bool isRecording) async {
+    try {
+      if (isRecording) {
+        // Stop recording
+        switch (currentMode) {
+          case RecordingMode.manual:
+            await RecordingModeService.instance.stopManualRecording();
+            break;
+          case RecordingMode.demo:
+            await RecordingModeService.instance.stopDemo();
+            break;
+          case RecordingMode.automatic:
+            // Automatic recording stops automatically
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Automatic recording will stop when call ends'),
+                backgroundColor: AppTheme.warningColor,
+              ),
+            );
+            return;
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Recording stopped'),
+            backgroundColor: AppTheme.successColor,
+          ),
+        );
+      } else {
+        // Start recording
+        switch (currentMode) {
+          case RecordingMode.manual:
+            await RecordingModeService.instance.startManualRecording(
+              phoneNumber: '+1234567890',
+              contactName: 'Test Contact',
+              isIncoming: true,
+            );
+            break;
+          case RecordingMode.demo:
+            await RecordingModeService.instance.startDemo(DemoScenario.techSupportScam);
+            break;
+          case RecordingMode.automatic:
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Automatic recording starts when calls are detected'),
+                backgroundColor: AppTheme.primaryColor,
+              ),
+            );
+            return;
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Recording started'),
+            backgroundColor: AppTheme.successColor,
+          ),
+        );
+      }
+    } catch (error) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $error'),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+    }
   }
 
 

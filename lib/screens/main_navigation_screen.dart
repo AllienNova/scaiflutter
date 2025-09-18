@@ -5,7 +5,7 @@ import '../core/app_theme.dart';
 import '../screens/home_screen.dart';
 import '../screens/call_history_screen.dart';
 import '../screens/settings_screen.dart';
-import '../screens/analysis_reports_screen.dart';
+import '../screens/analysis_screen.dart';
 
 // Navigation state provider
 final navigationIndexProvider = StateProvider<int>((ref) => 0);
@@ -20,7 +20,7 @@ class MainNavigationScreen extends ConsumerWidget {
     final List<Widget> screens = [
       const HomeScreen(),
       const CallHistoryScreen(),
-      const AnalysisReportsScreen(),
+      const AnalysisScreen(),
       const SettingsScreen(),
     ];
 

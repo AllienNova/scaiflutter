@@ -1,5 +1,5 @@
 class AppConstants {
-  static const String appName = 'SCAI Guard';
+  static const String appName = 'ScamShieldAI';
   static const String appVersion = '1.0.0';
   
   static const String theHiveApiBaseUrl = 'https://api.thehive.ai/v1';

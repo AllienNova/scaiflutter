@@ -58,12 +58,13 @@ void main() async {
   
   runApp(
     ProviderScope(
-      child: SCAIApp(),
+      child: ScamShieldAIApp(),
     ),
   );
 }
 
-class SCAIApp extends ConsumerWidget {
+class ScamShieldAIApp extends ConsumerWidget {
+  const ScamShieldAIApp({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final appState = ref.watch(appStateProvider);

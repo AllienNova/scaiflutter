@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/app_theme.dart';
+import '../screens/main_navigation_screen.dart';
 
-class QuickActionsWidget extends StatelessWidget {
+class QuickActionsWidget extends ConsumerWidget {
+  const QuickActionsWidget({super.key});
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -56,10 +60,10 @@ class QuickActionsWidget extends StatelessWidget {
                 
                 _buildActionCard(
                   context,
-                  'Analysis History',
-                  Icons.analytics,
+                  'Live Analysis',
+                  Icons.radar,
                   AppTheme.warningColor,
-                  () => context.push('/analysis-history'),
+                  () => _navigateToAnalysis(ref),
                 ).animate(delay: 0.3.seconds)
                   .fadeIn(duration: 0.5.seconds)
                   .slideX(begin: -0.2, end: 0),
@@ -126,5 +130,10 @@ class QuickActionsWidget extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  void _navigateToAnalysis(WidgetRef ref) {
+    // Navigate to Analysis tab (index 2)
+    ref.read(navigationIndexProvider.notifier).state = 2;
   }
 }
