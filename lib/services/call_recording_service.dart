@@ -59,7 +59,7 @@ class CallRecordingService {
       final fileName = _generateFileName(phoneNumber, isIncoming, timestamp);
       final filePath = '${_recordingsDirectory.path}/$fileName';
 
-      // Start recording
+      // Start recording (microphone only - system app required for full call recording)
       await _recorder.start(
         const RecordConfig(
           encoder: AudioEncoder.aacLc,
@@ -82,6 +82,7 @@ class CallRecordingService {
       );
 
       _logger.i('Started recording: $fileName');
+      _logger.w('Recording microphone only - install as system app for full call recording');
     } catch (error) {
       _logger.e('Error starting recording: $error');
       _currentRecording = null;
@@ -238,4 +239,21 @@ class CallRecordingService {
   bool get isRecording => _currentRecording != null;
 
   CallRecording? get currentRecording => _currentRecording;
+
+  /// Check if app has system-level call recording capabilities
+  Future<bool> hasSystemCallRecordingCapability() async {
+    try {
+      // This would require a platform channel to check if app is system app
+      // For now, return false as most installations are user apps
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Get recording capability status message
+  String getRecordingCapabilityMessage() {
+    return 'Recording microphone audio only. For full call recording (both sides), '
+           'install SCAI as a system app. See SYSTEM_APP_INSTALLATION_GUIDE.md for details.';
+  }
 }

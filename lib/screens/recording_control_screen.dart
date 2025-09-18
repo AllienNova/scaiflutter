@@ -45,6 +45,58 @@ class _RecordingControlScreenState extends ConsumerState<RecordingControlScreen>
     super.dispose();
   }
 
+  void _showSystemAppGuide() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('System App Installation'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'To enable full call recording (both sides of conversation), SCAI must be installed as a system app.',
+                style: TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Requirements:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const Text('• Rooted Android device'),
+              const Text('• ADB (Android Debug Bridge)'),
+              const Text('• USB debugging enabled'),
+              const SizedBox(height: 16),
+              const Text(
+                'Current Capability:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const Text('• ✅ Phone call detection'),
+              const Text('• ✅ Automatic recording triggers'),
+              const Text('• ⚠️ Microphone audio only'),
+              const Text('• ❌ Full call recording (requires system app)'),
+              const SizedBox(height: 16),
+              const Text(
+                'See SYSTEM_APP_INSTALLATION_GUIDE.md in the project root for detailed installation instructions.',
+                style: TextStyle(
+                  fontStyle: FontStyle.italic,
+                  color: Colors.grey,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -508,6 +560,60 @@ class _RecordingControlScreenState extends ConsumerState<RecordingControlScreen>
                     ),
                   ),
                 ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        // Recording limitation warning
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppTheme.warningColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppTheme.warningColor.withOpacity(0.3)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    color: AppTheme.warningColor,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Recording Limitation',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.warningColor,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Currently recording microphone audio only. For full call recording (both sides), SCAI must be installed as a system app.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: AppTheme.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: () => _showSystemAppGuide(),
+                child: Text(
+                  'View installation guide →',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppTheme.primaryColor,
+                    fontWeight: FontWeight.w500,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
               ),
             ],
           ),
