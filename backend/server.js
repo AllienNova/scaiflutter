@@ -45,6 +45,8 @@ const upload = multer({
 
 // In-memory storage for analysis results (in production, use a database)
 let analysisHistory = [];
+let chunkAnalysisHistory = [];
+let liveAnalysisSessions = new Map();
 
 // Mock scam types and analysis logic
 const SCAM_TYPES = [
@@ -64,14 +66,14 @@ const RISK_LEVELS = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 // Generate mock analysis results
 function generateMockAnalysis(audioFile) {
   const isScam = Math.random() > 0.6; // 40% chance of being a scam
-  const confidenceScore = isScam 
+  const confidenceScore = isScam
     ? Math.floor(Math.random() * 40) + 60  // 60-100 for scams
     : Math.floor(Math.random() * 60) + 10; // 10-70 for legitimate
-  
-  const scamType = isScam 
+
+  const scamType = isScam
     ? SCAM_TYPES[Math.floor(Math.random() * (SCAM_TYPES.length - 1))]
     : 'LEGITIMATE';
-  
+
   const riskLevel = confidenceScore >= 80 ? 'CRITICAL' :
                    confidenceScore >= 60 ? 'HIGH' :
                    confidenceScore >= 40 ? 'MEDIUM' : 'LOW';
@@ -89,6 +91,56 @@ function generateMockAnalysis(audioFile) {
     duration: Math.floor(Math.random() * 300) + 30, // 30-330 seconds
     keywords: isScam ? ['suspicious', 'urgent', 'verify', 'account'] : ['normal', 'conversation'],
     flags: isScam ? ['SUSPICIOUS_KEYWORDS', 'PRESSURE_TACTICS'] : []
+  };
+}
+
+// Generate mock chunk analysis results
+function generateMockChunkAnalysis(audioFile, chunkNumber, totalChunks, callId) {
+  const scamProbability = Math.random() * 100;
+  const confidenceScore = 75 + Math.random() * 25; // 75-100
+
+  const detectedPatterns = [];
+  const riskIndicators = [];
+
+  if (scamProbability > 50) {
+    detectedPatterns.push({
+      id: uuidv4(),
+      name: 'Urgency Tactics',
+      description: 'Caller using urgent language to pressure response',
+      confidence: 0.8,
+      detected_at: new Date().toISOString()
+    });
+    riskIndicators.push('Suspicious keywords detected');
+  }
+
+  if (scamProbability > 70) {
+    detectedPatterns.push({
+      id: uuidv4(),
+      name: 'Authority Impersonation',
+      description: 'Caller claiming to be from government or official organization',
+      confidence: 0.9,
+      detected_at: new Date().toISOString()
+    });
+    riskIndicators.push('Authority impersonation detected');
+  }
+
+  if (scamProbability > 80) {
+    riskIndicators.push('Request for personal information');
+  }
+
+  return {
+    chunk_analysis_id: uuidv4(),
+    call_id: callId,
+    chunk_number: chunkNumber,
+    total_chunks: totalChunks,
+    scam_probability: scamProbability,
+    detected_patterns: detectedPatterns,
+    confidence_score: confidenceScore,
+    risk_indicators: riskIndicators,
+    analyzed_at: new Date().toISOString(),
+    chunk_duration_seconds: 10,
+    file_name: audioFile.filename,
+    file_size: audioFile.size
   };
 }
 
@@ -162,6 +214,209 @@ app.post('/analyze-audio', upload.single('audio'), async (req, res) => {
     console.error('Error analyzing audio:', error);
     res.status(500).json({ 
       error: 'Internal server error during analysis',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Analyze audio chunk endpoint for live analysis
+app.post('/analyze-chunk', upload.single('audio'), async (req, res) => {
+  try {
+    console.log('=== CHUNK ANALYSIS REQUEST ===');
+    console.log('File received:', req.file ? req.file.originalname : 'No file');
+    console.log('Chunk metadata:', req.body);
+
+    if (!req.file) {
+      console.log('ERROR: No audio chunk provided');
+      return res.status(400).json({
+        error: 'No audio chunk provided',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const { call_id, chunk_number, total_chunks } = req.body;
+
+    if (!call_id || !chunk_number) {
+      console.log('ERROR: Missing required chunk metadata');
+      return res.status(400).json({
+        error: 'Missing call_id or chunk_number',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Simulate processing time (shorter for chunks)
+    console.log(`Processing chunk ${chunk_number} for call ${call_id}...`);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // Generate mock chunk analysis
+    const chunkAnalysis = generateMockChunkAnalysis(
+      req.file,
+      parseInt(chunk_number),
+      parseInt(total_chunks) || 0,
+      call_id
+    );
+
+    // Add metadata from request
+    if (req.body.phone_number) chunkAnalysis.phone_number = req.body.phone_number;
+    if (req.body.is_incoming) chunkAnalysis.is_incoming = req.body.is_incoming === 'true';
+
+    // Store in chunk history
+    chunkAnalysisHistory.push(chunkAnalysis);
+
+    // Update live session if exists
+    if (liveAnalysisSessions.has(call_id)) {
+      const session = liveAnalysisSessions.get(call_id);
+      session.chunk_results.push(chunkAnalysis);
+      session.processed_chunks = parseInt(chunk_number);
+      session.last_updated = new Date().toISOString();
+      liveAnalysisSessions.set(call_id, session);
+    }
+
+    console.log('=== CHUNK ANALYSIS COMPLETE ===');
+    console.log('Chunk Analysis ID:', chunkAnalysis.chunk_analysis_id);
+    console.log('Scam Probability:', chunkAnalysis.scam_probability);
+    console.log('Patterns Detected:', chunkAnalysis.detected_patterns.length);
+    console.log('================================');
+
+    res.json({
+      success: true,
+      chunk_analysis: chunkAnalysis,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error analyzing chunk:', error);
+    res.status(500).json({
+      error: 'Internal server error during chunk analysis',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Start live analysis session endpoint
+app.post('/start-live-analysis', (req, res) => {
+  try {
+    console.log('=== START LIVE ANALYSIS SESSION ===');
+    console.log('Session data:', req.body);
+
+    const { call_id, phone_number, is_incoming } = req.body;
+
+    if (!call_id) {
+      return res.status(400).json({
+        error: 'Missing call_id',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const session = {
+      id: uuidv4(),
+      call_id,
+      phone_number: phone_number || 'Unknown',
+      is_incoming: is_incoming || false,
+      started_at: new Date().toISOString(),
+      is_active: true,
+      chunk_results: [],
+      processed_chunks: 0,
+      total_chunks: 0,
+      last_updated: new Date().toISOString()
+    };
+
+    liveAnalysisSessions.set(call_id, session);
+
+    console.log('Live analysis session started:', session.id);
+
+    res.json({
+      success: true,
+      session,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error starting live analysis session:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Stop live analysis session endpoint
+app.post('/stop-live-analysis', (req, res) => {
+  try {
+    console.log('=== STOP LIVE ANALYSIS SESSION ===');
+    console.log('Request data:', req.body);
+
+    const { call_id } = req.body;
+
+    if (!call_id) {
+      return res.status(400).json({
+        error: 'Missing call_id',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    if (!liveAnalysisSessions.has(call_id)) {
+      return res.status(404).json({
+        error: 'Live analysis session not found',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const session = liveAnalysisSessions.get(call_id);
+    session.is_active = false;
+    session.ended_at = new Date().toISOString();
+    session.last_updated = new Date().toISOString();
+
+    liveAnalysisSessions.set(call_id, session);
+
+    console.log('Live analysis session stopped:', session.id);
+
+    res.json({
+      success: true,
+      session,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error stopping live analysis session:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Get live analysis session endpoint
+app.get('/live-analysis/:call_id', (req, res) => {
+  try {
+    console.log('=== GET LIVE ANALYSIS SESSION ===');
+    console.log('Call ID:', req.params.call_id);
+
+    const callId = req.params.call_id;
+
+    if (!liveAnalysisSessions.has(callId)) {
+      return res.status(404).json({
+        error: 'Live analysis session not found',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const session = liveAnalysisSessions.get(callId);
+
+    res.json({
+      success: true,
+      session,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error getting live analysis session:', error);
+    res.status(500).json({
+      error: 'Internal server error',
       message: error.message,
       timestamp: new Date().toISOString()
     });

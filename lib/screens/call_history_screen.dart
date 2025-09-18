@@ -5,9 +5,12 @@ import 'package:intl/intl.dart';
 
 import '../core/app_theme.dart';
 import '../models/call_recording_model.dart';
+import '../models/live_analysis_models.dart';
 import '../providers/call_recording_provider.dart';
+import '../services/backend_api_service.dart';
 import '../widgets/call_recording_item.dart';
 import '../widgets/filter_bottom_sheet.dart';
+import '../widgets/analysis_display_widget.dart';
 
 class CallHistoryScreen extends ConsumerStatefulWidget {
   const CallHistoryScreen({super.key});
@@ -234,9 +237,11 @@ class _CallHistoryScreenState extends ConsumerState<CallHistoryScreen> {
   }
 
   void _showRecordingDetails(CallRecording recording) {
-    // TODO: Navigate to recording details screen
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Show details for ${recording.phoneNumber}')),
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _RecordingAnalysisModal(recording: recording),
     );
   }
 
@@ -252,5 +257,408 @@ class _CallHistoryScreenState extends ConsumerState<CallHistoryScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Starting analysis...')),
     );
+  }
+}
+
+/// Modal for displaying recording analysis with re-analysis capability
+class _RecordingAnalysisModal extends StatefulWidget {
+  final CallRecording recording;
+
+  const _RecordingAnalysisModal({required this.recording});
+
+  @override
+  State<_RecordingAnalysisModal> createState() => _RecordingAnalysisModalState();
+}
+
+class _RecordingAnalysisModalState extends State<_RecordingAnalysisModal> {
+  List<ChunkAnalysisResult> _chunkResults = [];
+  bool _isAnalyzing = false;
+  int _processedChunks = 0;
+  int _totalChunks = 0;
+  String _analysisStatus = 'Ready to analyze';
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.8,
+      maxChildSize: 0.95,
+      minChildSize: 0.5,
+      builder: (context, scrollController) => Container(
+        decoration: const BoxDecoration(
+          color: AppTheme.backgroundColor,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  const Text(
+                    'Recording Analysis',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                controller: scrollController,
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildRecordingInfo(),
+                    const SizedBox(height: 16),
+                    _buildAnalysisSection(),
+                    const SizedBox(height: 16),
+                    if (_chunkResults.isNotEmpty) _buildChunkResults(),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecordingInfo() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.cardColor,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                widget.recording.isIncoming ? Icons.call_received : Icons.call_made,
+                color: widget.recording.isIncoming ? Colors.green : Colors.blue,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                widget.recording.phoneNumber,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                widget.recording.formattedDuration,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: AppTheme.textSecondary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            DateFormat('MMM dd, yyyy • hh:mm a').format(widget.recording.timestamp),
+            style: const TextStyle(
+              fontSize: 14,
+              color: AppTheme.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'File: ${widget.recording.fileName}',
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppTheme.textTertiary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAnalysisSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.cardColor,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Chunk Analysis',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Analyze this recording in 10-second chunks for detailed scam detection',
+            style: TextStyle(
+              fontSize: 14,
+              color: AppTheme.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (_isAnalyzing) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          _analysisStatus,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: AppTheme.textPrimary,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '$_processedChunks / $_totalChunks',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: AppTheme.primaryColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  LinearProgressIndicator(
+                    value: _totalChunks > 0 ? _processedChunks / _totalChunks : 0.0,
+                    backgroundColor: Colors.grey.shade300,
+                    valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _startReAnalysis,
+                icon: const Icon(Icons.analytics),
+                label: Text(_chunkResults.isEmpty ? 'Start Analysis' : 'Re-analyze'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChunkResults() {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.cardColor,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text(
+              'Analysis Results',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textPrimary,
+              ),
+            ),
+          ),
+          if (_chunkResults.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: AnalysisDisplayWidget(
+                latestResult: _chunkResults.last,
+                isLiveMode: false,
+                showProgress: false,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'Chunk Breakdown',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            ..._chunkResults.map((chunk) => Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.backgroundColor,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: ThreatLevel.fromPercentage(chunk.scamProbability).color.withOpacity(0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: ThreatLevel.fromPercentage(chunk.scamProbability).color.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Center(
+                      child: Text(
+                        '${chunk.chunkNumber}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: ThreatLevel.fromPercentage(chunk.scamProbability).color,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Chunk ${chunk.chunkNumber} (${chunk.chunkDuration.inSeconds}s)',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: AppTheme.textPrimary,
+                          ),
+                        ),
+                        if (chunk.detectedPatterns.isNotEmpty)
+                          Text(
+                            chunk.detectedPatterns.map((p) => p.name).join(', '),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppTheme.textSecondary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    '${chunk.scamProbability.toStringAsFixed(1)}%',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: ThreatLevel.fromPercentage(chunk.scamProbability).color,
+                    ),
+                  ),
+                ],
+              ),
+            )),
+            const SizedBox(height: 16),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _startReAnalysis() async {
+    setState(() {
+      _isAnalyzing = true;
+      _chunkResults.clear();
+      _processedChunks = 0;
+      _totalChunks = 5; // Simulate 5 chunks
+      _analysisStatus = 'Starting analysis...';
+    });
+
+    try {
+      final results = await BackendApiService.instance.reAnalyzeRecording(
+        widget.recording.filePath,
+        callId: widget.recording.id,
+        phoneNumber: widget.recording.phoneNumber,
+        isIncoming: widget.recording.isIncoming,
+      );
+
+      // Simulate progressive updates
+      for (int i = 0; i < results.length; i++) {
+        await Future.delayed(const Duration(milliseconds: 500));
+
+        if (mounted) {
+          setState(() {
+            _chunkResults.add(results[i]);
+            _processedChunks = i + 1;
+            _analysisStatus = 'Processed chunk ${i + 1} of ${results.length}';
+          });
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _isAnalyzing = false;
+          _analysisStatus = 'Analysis complete';
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _isAnalyzing = false;
+          _analysisStatus = 'Analysis failed: $error';
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Analysis failed: $error'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      }
+    }
   }
 }

@@ -26,7 +26,7 @@ class QuickActionsWidget extends StatelessWidget {
               crossAxisCount: 2,
               mainAxisSpacing: 12,
               crossAxisSpacing: 12,
-              childAspectRatio: 1.5,
+              childAspectRatio: 1.6, // Slightly wider to reduce height
               children: [
                 _buildActionCard(
                   context,
@@ -98,7 +98,7 @@ class QuickActionsWidget extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12), // Reduced from 16 to 12
           decoration: BoxDecoration(
             color: color.withOpacity(0.1),
             borderRadius: BorderRadius.circular(12),
@@ -110,9 +110,9 @@ class QuickActionsWidget extends StatelessWidget {
               Icon(
                 icon,
                 color: color,
-                size: 28,
+                size: 24, // Reduced from 28 to 24
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6), // Reduced from 8 to 6
               Text(
                 title,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(

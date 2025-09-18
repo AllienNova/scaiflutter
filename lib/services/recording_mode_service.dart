@@ -8,6 +8,7 @@ import '../providers/call_recording_provider.dart';
 import 'call_recording_service.dart';
 import 'backend_api_service.dart';
 import 'phone_state_platform_service.dart';
+import 'live_analysis_service.dart';
 
 enum RecordingMode {
   manual,      // User manually starts/stops recording
@@ -326,13 +327,25 @@ class RecordingModeService {
       switch (event.state) {
         case 'CALL_STATE_STARTED':
           await _startAutomaticRecording(event.phoneNumber);
+          // Start live analysis if enabled
+          if (LiveAnalysisService.instance.isAnalysisEnabled) {
+            await _startLiveAnalysisForCall(event.phoneNumber, false); // Assume outgoing for started
+          }
           break;
         case 'CALL_STATE_ENDED':
           await _stopAutomaticRecording();
+          // Stop live analysis if active
+          if (LiveAnalysisService.instance.currentSession?.isActive == true) {
+            await LiveAnalysisService.instance.stopLiveAnalysis();
+          }
           break;
         case 'CALL_STATE_INCOMING':
           _logger.i('Incoming call detected: ${event.phoneNumber}');
           _statusController.add('Incoming call from ${event.phoneNumber ?? "Unknown"}');
+          // Start live analysis for incoming call if enabled
+          if (LiveAnalysisService.instance.isAnalysisEnabled) {
+            await _startLiveAnalysisForCall(event.phoneNumber, true); // Incoming call
+          }
           break;
         default:
           _logger.d('Other phone state: ${event.state}');
@@ -543,6 +556,24 @@ class RecordingModeService {
         return 'Tech Support Scam';
       case DemoScenario.irsScam:
         return 'IRS Impersonation Scam';
+    }
+  }
+
+  Future<void> _startLiveAnalysisForCall(String? phoneNumber, bool isIncoming) async {
+    try {
+      _logger.i('Starting live analysis for call: ${phoneNumber ?? "Unknown"} (incoming: $isIncoming)');
+
+      await LiveAnalysisService.instance.startLiveAnalysis(
+        phoneNumber ?? 'Unknown',
+        isIncoming,
+      );
+
+      _statusController.add('🔍 Live scam analysis started');
+      _logger.i('Live analysis started successfully');
+
+    } catch (error) {
+      _logger.e('Failed to start live analysis: $error');
+      _statusController.add('⚠️ Live analysis failed to start: $error');
     }
   }
 

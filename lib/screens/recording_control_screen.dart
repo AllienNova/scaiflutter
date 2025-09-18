@@ -5,7 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/app_theme.dart';
 import '../services/recording_mode_service.dart';
 import '../services/call_recording_service.dart';
+import '../services/live_analysis_service.dart';
 import '../providers/call_recording_provider.dart';
+import '../widgets/analysis_display_widget.dart';
+import '../models/live_analysis_models.dart';
 
 class RecordingControlScreen extends ConsumerStatefulWidget {
   const RecordingControlScreen({super.key});
@@ -22,6 +25,8 @@ class _RecordingControlScreenState extends ConsumerState<RecordingControlScreen>
   DemoScenario _selectedScenario = DemoScenario.legitimateCall;
   bool _isIncoming = true;
   String _statusMessage = 'Ready to record';
+  bool _isLiveAnalysisEnabled = false;
+  LiveAnalysisSession? _currentLiveSession;
 
   @override
   void initState() {
@@ -39,6 +44,23 @@ class _RecordingControlScreenState extends ConsumerState<RecordingControlScreen>
       if (mounted) {
         setState(() {
           _statusMessage = status;
+        });
+      }
+    });
+
+    // Listen to live analysis updates
+    LiveAnalysisService.instance.sessionStream.listen((session) {
+      if (mounted) {
+        setState(() {
+          _currentLiveSession = session;
+        });
+      }
+    });
+
+    LiveAnalysisService.instance.analysisStateStream.listen((isEnabled) {
+      if (mounted) {
+        setState(() {
+          _isLiveAnalysisEnabled = isEnabled;
         });
       }
     });
@@ -123,6 +145,10 @@ class _RecordingControlScreenState extends ConsumerState<RecordingControlScreen>
           children: [
             _buildStatusCard(),
             const SizedBox(height: 24),
+            _buildLiveAnalysisToggle(),
+            const SizedBox(height: 24),
+            if (_currentLiveSession != null) _buildLiveAnalysisDisplay(),
+            if (_currentLiveSession != null) const SizedBox(height: 24),
             _buildModeSelector(),
             const SizedBox(height: 24),
             if (_selectedMode == RecordingMode.manual) _buildManualControls(),
@@ -233,6 +259,128 @@ class _RecordingControlScreenState extends ConsumerState<RecordingControlScreen>
     ).animate()
       .fadeIn(duration: 0.6.seconds)
       .slideY(begin: 0.2, end: 0);
+  }
+
+  Widget _buildLiveAnalysisToggle() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: _isLiveAnalysisEnabled
+              ? AppTheme.primaryColor.withOpacity(0.3)
+              : AppTheme.borderColor,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.radar,
+                color: _isLiveAnalysisEnabled
+                    ? AppTheme.primaryColor
+                    : AppTheme.textSecondary,
+                size: 24,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Live Scam Analysis',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: _isLiveAnalysisEnabled
+                            ? AppTheme.primaryColor
+                            : AppTheme.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Real-time threat detection during calls',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(
+                value: _isLiveAnalysisEnabled,
+                onChanged: _toggleLiveAnalysis,
+                activeColor: AppTheme.primaryColor,
+              ),
+            ],
+          ),
+          if (_isLiveAnalysisEnabled) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    color: AppTheme.primaryColor,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Live analysis will start automatically when a call is detected',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.primaryColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _startManualLiveAnalysis,
+                icon: const Icon(Icons.play_arrow),
+                label: const Text('Start Manual Analysis'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppTheme.primaryColor,
+                  side: BorderSide(color: AppTheme.primaryColor),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLiveAnalysisDisplay() {
+    if (_currentLiveSession == null) return const SizedBox.shrink();
+
+    return AnalysisDisplayWidget(
+      session: _currentLiveSession,
+      isLiveMode: true,
+      showProgress: true,
+      onTap: _showLiveAnalysisDetails,
+    );
   }
 
   Widget _buildModeSelector() {
@@ -746,6 +894,249 @@ class _RecordingControlScreenState extends ConsumerState<RecordingControlScreen>
         );
       }
     }
+  }
+
+  void _toggleLiveAnalysis(bool enabled) async {
+    try {
+      if (enabled) {
+        await LiveAnalysisService.instance.enableLiveAnalysis();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Live analysis enabled'),
+              backgroundColor: AppTheme.successColor,
+            ),
+          );
+        }
+      } else {
+        await LiveAnalysisService.instance.disableLiveAnalysis();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Live analysis disabled'),
+              backgroundColor: AppTheme.warningColor,
+            ),
+          );
+        }
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error toggling live analysis: $error'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      }
+    }
+  }
+
+  void _startManualLiveAnalysis() async {
+    try {
+      await LiveAnalysisService.instance.startLiveAnalysis(
+        _phoneController.text,
+        _isIncoming,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Manual live analysis started'),
+            backgroundColor: AppTheme.successColor,
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error starting live analysis: $error'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showLiveAnalysisDetails() {
+    if (_currentLiveSession == null) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        maxChildSize: 0.9,
+        minChildSize: 0.5,
+        builder: (context, scrollController) => Container(
+          decoration: const BoxDecoration(
+            color: AppTheme.backgroundColor,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    const Text(
+                      'Live Analysis Details',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: scrollController,
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      AnalysisDisplayWidget(
+                        session: _currentLiveSession,
+                        isLiveMode: true,
+                        showProgress: true,
+                      ),
+                      const SizedBox(height: 16),
+                      _buildChunkHistory(),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChunkHistory() {
+    if (_currentLiveSession?.chunkResults.isEmpty ?? true) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppTheme.cardColor,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Center(
+          child: Text(
+            'No chunk analysis results yet',
+            style: TextStyle(
+              color: AppTheme.textSecondary,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.cardColor,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text(
+              'Chunk Analysis History',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textPrimary,
+              ),
+            ),
+          ),
+          ...(_currentLiveSession!.chunkResults.reversed.take(5).map((chunk) =>
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.backgroundColor,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: ThreatLevel.fromPercentage(chunk.scamProbability).color.withOpacity(0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: ThreatLevel.fromPercentage(chunk.scamProbability).color.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Center(
+                      child: Text(
+                        '${chunk.chunkNumber}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: ThreatLevel.fromPercentage(chunk.scamProbability).color,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Chunk ${chunk.chunkNumber}',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: AppTheme.textPrimary,
+                          ),
+                        ),
+                        Text(
+                          '${chunk.detectedPatterns.length} patterns detected',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    '${chunk.scamProbability.toStringAsFixed(1)}%',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: ThreatLevel.fromPercentage(chunk.scamProbability).color,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
   }
 
   Future<void> _startDemo() async {
