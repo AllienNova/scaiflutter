@@ -1,0 +1,124 @@
+name: scai_app
+description: AI-enabled Flutter application for live call recording and anti-scam analysis
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.8.0 <4.0.0'
+  flutter: ">=3.10.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # Core Dependencies
+  cupertino_icons: ^1.0.6
+  
+  # State Management
+  provider: ^6.1.1
+  flutter_riverpod: ^2.4.0
+  
+  # Navigation
+  go_router: ^12.1.1
+  
+  # Networking & HTTP
+  http: ^1.1.2
+  dio: ^5.3.0
+  
+  # Audio Recording & Processing
+  record: ^6.1.1
+  audio_session: ^0.1.16
+  just_audio: ^0.9.35
+  permission_handler: ^11.1.0
+  
+  # Phone & SMS Functionality (temporarily commented out due to namespace issues)
+  # call_log: ^6.0.1
+  # flutter_contacts: ^1.1.9
+  # phone_state: ^2.1.1
+  # sms_advanced: ^1.1.0
+  
+  # Real-time Communication
+  web_socket_channel: ^2.4.0
+  stream_channel: ^2.1.2
+  
+  # File Handling & Storage
+  path_provider: ^2.1.1
+  shared_preferences: ^2.2.2
+  sqflite: ^2.3.0
+  
+  # UI & Animations
+  flutter_animate: ^4.3.0
+  lottie: ^2.7.0
+  shimmer: ^3.0.0
+  auto_size_text: ^3.0.0
+  flutter_staggered_animations: ^1.1.1
+  
+  # Security & Encryption
+  crypto: ^3.0.3
+  encrypt: ^5.0.1
+  
+  # Background Processing
+  workmanager: ^0.9.0+3
+  
+  # Connectivity & Network
+  connectivity_plus: ^5.0.2
+  network_info_plus: ^4.1.0
+  
+  # Device Info & Platform
+  device_info_plus: ^9.1.1
+  package_info_plus: ^4.2.0
+  
+  # Date & Time
+  intl: ^0.18.1
+  
+  # Logging & Analytics
+  logger: ^2.0.2+1
+  
+  # JSON Serialization
+  json_annotation: ^4.9.0
+  
+  # Utils
+  collection: ^1.18.0
+  uuid: ^4.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  
+  # Linting & Code Generation
+  flutter_lints: ^3.0.1
+  build_runner: ^2.4.7
+  json_serializable: ^6.7.1
+  
+  # Testing
+  mockito: ^5.4.4
+  integration_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  
+  assets:
+    - assets/images/
+    - assets/animations/
+    - assets/sounds/
+    - assets/icons/
+  
+  # fonts:
+  #   - family: Poppins
+  #     fonts:
+  #       - asset: assets/fonts/Poppins-Regular.ttf
+  #       - asset: assets/fonts/Poppins-Medium.ttf
+  #         weight: 500
+  #       - asset: assets/fonts/Poppins-SemiBold.ttf
+  #         weight: 600
+  #       - asset: assets/fonts/Poppins-Bold.ttf
+  #         weight: 700
+  #   - family: Inter
+  #     fonts:
+  #       - asset: assets/fonts/Inter-Regular.ttf
+  #       - asset: assets/fonts/Inter-Medium.ttf
+  #         weight: 500
+  #       - asset: assets/fonts/Inter-SemiBold.ttf
+  #         weight: 600
+  #       - asset: assets/fonts/Inter-Bold.ttf
+  #         weight: 700
