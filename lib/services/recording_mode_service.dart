@@ -27,10 +27,15 @@ class RecordingModeService {
   RecordingModeService._internal();
 
   final Logger _logger = Logger();
-  
+
   RecordingMode _currentMode = RecordingMode.manual;
   bool _isDemoRunning = false;
   Timer? _demoTimer;
+
+  // Automatic recording state
+  StreamSubscription<PhoneStateEvent>? _phoneStateSubscription;
+  bool _isAutomaticRecording = false;
+  String? _currentCallId;
 
   RecordingMode get currentMode => _currentMode;
   bool get isDemoRunning => _isDemoRunning;
@@ -241,8 +246,17 @@ class RecordingModeService {
         await PhoneStatePlatformService.instance.startPhoneStateMonitoring();
       }
 
+      // Subscribe to phone state events for automatic recording
+      _phoneStateSubscription = PhoneStatePlatformService.instance.phoneStateStream.listen(
+        _handlePhoneStateChange,
+        onError: (error) {
+          _logger.e('Phone state stream error: $error');
+          _statusController.add('Phone monitoring error: $error');
+        },
+      );
+
       _statusController.add('Automatic call recording enabled - monitoring phone state');
-      _logger.i('Automatic mode enabled successfully');
+      _logger.i('Automatic mode enabled successfully with phone state subscription');
 
     } catch (error) {
       _logger.e('Error enabling automatic mode: $error');
@@ -256,6 +270,15 @@ class RecordingModeService {
       _logger.i('Disabling automatic call recording mode');
       _statusController.add('Disabling automatic call recording...');
 
+      // Cancel phone state subscription
+      await _phoneStateSubscription?.cancel();
+      _phoneStateSubscription = null;
+
+      // Stop any ongoing automatic recording
+      if (_isAutomaticRecording) {
+        await _stopAutomaticRecording();
+      }
+
       await PhoneStatePlatformService.instance.stopPhoneStateMonitoring();
 
       _statusController.add('Automatic call recording disabled');
@@ -266,6 +289,106 @@ class RecordingModeService {
       _statusController.add('Error: $error');
     }
   }
+
+  // Automatic Recording Event Handlers
+  void _handlePhoneStateChange(PhoneStateEvent event) async {
+    _logger.i('Phone state changed: ${event.state} - ${event.phoneNumber}');
+
+    try {
+      switch (event.state) {
+        case 'CALL_STATE_STARTED':
+          await _startAutomaticRecording(event.phoneNumber);
+          break;
+        case 'CALL_STATE_ENDED':
+          await _stopAutomaticRecording();
+          break;
+        case 'CALL_STATE_INCOMING':
+          _logger.i('Incoming call detected: ${event.phoneNumber}');
+          _statusController.add('Incoming call from ${event.phoneNumber ?? "Unknown"}');
+          break;
+        default:
+          _logger.d('Other phone state: ${event.state}');
+      }
+    } catch (error) {
+      _logger.e('Error handling phone state change: $error');
+      _statusController.add('Error handling call: $error');
+    }
+  }
+
+  Future<void> _startAutomaticRecording(String? phoneNumber) async {
+    if (_isAutomaticRecording) {
+      _logger.w('Recording already in progress, skipping');
+      return;
+    }
+
+    try {
+      _logger.i('Starting automatic recording for: ${phoneNumber ?? "Unknown"}');
+      _statusController.add('📞 Call started - Beginning automatic recording...');
+
+      // Generate unique call ID
+      _currentCallId = DateTime.now().millisecondsSinceEpoch.toString();
+
+      // Start recording
+      await CallRecordingService.instance.startRecording(
+        phoneNumber ?? 'Unknown',
+        true, // Assume incoming for automatic detection
+      );
+
+      _isAutomaticRecording = true;
+      _statusController.add('🎙️ Automatic recording in progress...');
+      _logger.i('Automatic recording started successfully');
+
+    } catch (error) {
+      _logger.e('Failed to start automatic recording: $error');
+      _statusController.add('❌ Failed to start recording: $error');
+      _isAutomaticRecording = false;
+      _currentCallId = null;
+    }
+  }
+
+  Future<void> _stopAutomaticRecording() async {
+    if (!_isAutomaticRecording) {
+      _logger.w('No automatic recording in progress, skipping stop');
+      return;
+    }
+
+    try {
+      _logger.i('Stopping automatic recording');
+      _statusController.add('📞 Call ended - Stopping automatic recording...');
+
+      // Stop recording
+      final recording = await CallRecordingService.instance.stopRecording();
+
+      _isAutomaticRecording = false;
+      _currentCallId = null;
+
+      if (recording != null) {
+        _statusController.add('✅ Recording saved: ${recording.fileName}');
+        _logger.i('Automatic recording stopped and saved successfully');
+
+        // Trigger analysis if backend is available
+        try {
+          _statusController.add('🔍 Analyzing recording for scam detection...');
+          // The CallRecordingService will handle the analysis automatically
+        } catch (analysisError) {
+          _logger.w('Analysis failed but recording was saved: $analysisError');
+        }
+      } else {
+        _statusController.add('⚠️ Recording stopped but no file was saved');
+      }
+
+    } catch (error) {
+      _logger.e('Failed to stop automatic recording: $error');
+      _statusController.add('❌ Error stopping recording: $error');
+      // Reset state even if stop fails
+      _isAutomaticRecording = false;
+      _currentCallId = null;
+    }
+  }
+
+  // Getters for automatic recording status
+  bool get isAutomaticRecording => _isAutomaticRecording;
+  String? get currentCallId => _currentCallId;
 
   // Helper Methods
   Map<String, dynamic> _getDemoData(DemoScenario scenario) {
@@ -387,6 +510,7 @@ class RecordingModeService {
 
   void dispose() {
     _demoTimer?.cancel();
+    _phoneStateSubscription?.cancel();
     _modeController.close();
     _statusController.close();
   }
