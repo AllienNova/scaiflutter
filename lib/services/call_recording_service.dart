@@ -141,6 +141,17 @@ class CallRecordingService {
       recordings.add(recording);
       await _saveRecordingsIndex(recordings);
       _logger.i('Saved recording to index: ${recording.id}');
+      _logger.i('Total recordings in index: ${recordings.length}');
+      _logger.i('Recording file path: ${recording.filePath}');
+
+      // Verify file exists
+      final file = File(recording.filePath);
+      if (await file.exists()) {
+        final fileSize = await file.length();
+        _logger.i('Recording file exists, size: $fileSize bytes');
+      } else {
+        _logger.w('Recording file does not exist at: ${recording.filePath}');
+      }
     } catch (error) {
       _logger.e('Error saving recording: $error');
       rethrow;
@@ -199,15 +210,29 @@ class CallRecordingService {
 
   Future<List<CallRecording>> getAllRecordings() async {
     try {
+      _logger.i('Loading recordings from: ${_recordingsIndexFile.path}');
+
       if (!await _recordingsIndexFile.exists()) {
+        _logger.i('Recordings index file does not exist, returning empty list');
         return [];
       }
 
       final content = await _recordingsIndexFile.readAsString();
+      _logger.i('Recordings index content length: ${content.length}');
+
+      if (content.trim().isEmpty) {
+        _logger.i('Recordings index file is empty');
+        return [];
+      }
+
       final List<dynamic> jsonList = json.decode(content);
-      
-      return jsonList.map((json) => CallRecording.fromJson(json)).toList()
+      _logger.i('Found ${jsonList.length} recordings in index');
+
+      final recordings = jsonList.map((json) => CallRecording.fromJson(json)).toList()
         ..sort((a, b) => b.timestamp.compareTo(a.timestamp)); // Most recent first
+
+      _logger.i('Returning ${recordings.length} recordings');
+      return recordings;
     } catch (error) {
       _logger.e('Error loading recordings: $error');
       return [];

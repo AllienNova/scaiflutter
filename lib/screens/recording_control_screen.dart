@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/app_theme.dart';
 import '../services/recording_mode_service.dart';
 import '../services/call_recording_service.dart';
+import '../providers/call_recording_provider.dart';
 
 class RecordingControlScreen extends ConsumerStatefulWidget {
   const RecordingControlScreen({super.key});
@@ -27,7 +28,12 @@ class _RecordingControlScreenState extends ConsumerState<RecordingControlScreen>
     super.initState();
     _phoneController.text = '+1 (555) 123-4567';
     _nameController.text = 'Test Contact';
-    
+
+    // Set up the ref for RecordingModeService to refresh providers
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      RecordingModeService.instance.setRef(ref);
+    });
+
     // Listen to status updates
     RecordingModeService.instance.statusStream.listen((status) {
       if (mounted) {
@@ -394,6 +400,12 @@ class _RecordingControlScreenState extends ConsumerState<RecordingControlScreen>
             ),
           ),
         ),
+        const SizedBox(height: 16),
+        // Debug button to test recording list refresh
+        OutlinedButton(
+          onPressed: _testRecordingListRefresh,
+          child: const Text('Test Recording List Refresh'),
+        ),
       ],
     );
   }
@@ -704,6 +716,31 @@ class _RecordingControlScreenState extends ConsumerState<RecordingControlScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error stopping recording: $error'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      }
+    }
+  }
+
+  void _testRecordingListRefresh() async {
+    try {
+      // Manually refresh the recordings list
+      await ref.read(callRecordingProvider.notifier).loadRecordings();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Recording list refreshed'),
+            backgroundColor: AppTheme.successColor,
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error refreshing list: $error'),
             backgroundColor: AppTheme.errorColor,
           ),
         );

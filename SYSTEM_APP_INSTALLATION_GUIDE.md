@@ -1,67 +1,132 @@
-# 🔧 SCAI System App Installation Guide
+# SCAI Guard - System App Installation Guide
 
-## ⚠️ **Critical Limitation: Call Recording Requires System App Status**
+## Why Convert to System App?
 
-The SCAI Flutter app currently records **microphone audio only** because Android restricts call recording to system apps. To enable **full call recording** (both sides of conversation), the app must be installed as a system app.
+Your SCAI Guard app requires system-level permissions for automatic call recording functionality. Converting it to a system app enables:
 
-## 🚨 **Current Behavior (User App)**
+- Access to privileged call recording APIs
+- Automatic call state monitoring without user intervention
+- Enhanced audio recording capabilities during calls
+- Bypass of Android's call recording restrictions
 
-- ✅ **Phone state detection** - Works perfectly
-- ✅ **Automatic recording triggers** - Works perfectly  
-- ⚠️ **Audio recording** - **Microphone only** (user's voice)
-- ❌ **Full call recording** - **Not available** (requires system app)
+## Prerequisites
 
-## 🛠️ **Solution: Convert to System App**
+⚠️ **WARNING**: This process requires rooting your Android device. Proceed at your own risk.
 
-### **Prerequisites:**
-- Rooted Android device
-- ADB (Android Debug Bridge) installed
-- USB debugging enabled
-- SCAI APK file
+### Required Tools:
+- **Rooted Android device** (using Magisk recommended)
+- **TWRP Recovery** or **Root file explorer** (like Root Explorer, ES File Explorer)
+- **ADB tools** (optional for advanced users)
+- **Magisk Manager** (recommended method)
 
-### **Step 1: Prepare the APK**
-```bash
-# Build the release APK
-flutter build apk --release
+### App Permissions Currently Required:
+Your SCAI app uses these permissions that benefit from system-level access:
+- `READ_PHONE_STATE` - Monitor call states
+- `RECORD_AUDIO` - Record call audio
+- `MODIFY_AUDIO_SETTINGS` - Control audio routing
+- `READ_CALL_LOG` / `WRITE_CALL_LOG` - Access call history
+- `FOREGROUND_SERVICE_PHONE_CALL` - Run during calls
 
-# Copy APK to accessible location
-cp build/app/outputs/flutter-apk/app-release.apk ~/Desktop/scai-app.apk
-```
+## Installation Methods
 
-### **Step 2: Root Access Required**
-```bash
-# Enable root access
-adb shell
-su
+### Method 1: Magisk Systemizer (Recommended)
 
-# Remount system partition as writable
-mount -o remount,rw /system
-```
+1. **Install Magisk** on your rooted device
+2. **Download App Systemizer Module**:
+   - Open Magisk Manager
+   - Go to Modules section
+   - Search for "App Systemizer" or download from [GitHub](https://github.com/Magisk-Modules-Repo/systemize)
+   - Install the module
 
-### **Step 3: Install as System App**
-```bash
-# Create system app directory
-mkdir -p /system/app/SCAI
+3. **Install Terminal App**:
+   - Install Termux from F-Droid or Google Play
+   - Grant superuser access when prompted
 
-# Copy APK to system directory
-cp /sdcard/scai-app.apk /system/app/SCAI/SCAI.apk
+4. **Systemize SCAI Guard**:
+   ```bash
+   # Open Termux
+   su
+   systemize
+   ```
+   - Select "Systemize Installed Apps"
+   - Find and select "SCAI Guard" 
+   - Choose installation location: `/system/app`
+   - Confirm installation
 
-# Set proper permissions
-chmod 644 /system/app/SCAI/SCAI.apk
-chown root:root /system/app/SCAI/SCAI.apk
+5. **Reboot** your device
 
-# Remount system as read-only
-mount -o remount,ro /system
-```
+### Method 2: Manual TWRP Method
 
-### **Step 4: Reboot and Verify**
-```bash
-# Reboot device
-reboot
+1. **Prepare App Data**:
+   - Install SCAI Guard normally first
+   - Use root file explorer to navigate to `/data/app/`
+   - Find `com.scai.guard.scai_app-*` folder
+   - Copy entire folder to internal storage
+   - Rename folder to `SCAIGuard` (remove special characters)
 
-# After reboot, verify installation
-adb shell pm list packages | grep scai
-```
+2. **Uninstall Original App**:
+   - Uninstall SCAI Guard from device
+   - Clear any remaining data
+
+3. **Install via TWRP**:
+   - Boot into TWRP Recovery
+   - Mount `/system` partition
+   - Use TWRP file manager to copy `SCAIGuard` folder to `/system/app/`
+   - Set permissions to `755` (rwxr-xr-x)
+   - Reboot to system
+
+### Method 3: Manual Root Explorer Method
+
+1. **Copy App Folder**:
+   - Use root file explorer with R/W access
+   - Navigate to `/data/app/`
+   - Find `com.scai.guard.scai_app-*`
+   - Copy to `/system/app/`
+   - Rename to `SCAIGuard`
+
+2. **Set Permissions**:
+   - Long press on folder → Properties
+   - Set permissions: Owner: RWX, Group: R-X, Others: R-X (755)
+   - Apply to all files and subfolders
+
+3. **Reboot** device
+
+### Method 4: ADB/Root Shell Method
+
+1. **Prepare APK**:
+   ```bash
+   # Build release APK
+   flutter build apk --release
+   
+   # Push APK to device
+   adb push build/app/outputs/flutter-apk/app-release.apk /sdcard/scai-guard.apk
+   ```
+
+2. **Install as System App**:
+   ```bash
+   # Connect via ADB
+   adb shell
+   su
+   
+   # Remount system as writable
+   mount -o remount,rw /system
+   
+   # Create system app directory
+   mkdir -p /system/app/SCAIGuard
+   
+   # Copy APK to system
+   cp /sdcard/scai-guard.apk /system/app/SCAIGuard/SCAIGuard.apk
+   
+   # Set permissions
+   chmod 644 /system/app/SCAIGuard/SCAIGuard.apk
+   chown root:root /system/app/SCAIGuard/SCAIGuard.apk
+   
+   # Remount as read-only
+   mount -o remount,ro /system
+   
+   # Reboot
+   reboot
+   ```
 
 ## 🔧 **Alternative Solutions (No Root Required)**
 

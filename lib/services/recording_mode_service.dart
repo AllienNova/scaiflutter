@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:logger/logger.dart';
 import 'dart:async';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/call_recording_model.dart';
+import '../providers/call_recording_provider.dart';
 import 'call_recording_service.dart';
 import 'backend_api_service.dart';
 import 'phone_state_platform_service.dart';
@@ -27,6 +29,7 @@ class RecordingModeService {
   RecordingModeService._internal();
 
   final Logger _logger = Logger();
+  WidgetRef? _ref; // Reference to Riverpod container for refreshing providers
 
   RecordingMode _currentMode = RecordingMode.manual;
   bool _isDemoRunning = false;
@@ -47,6 +50,11 @@ class RecordingModeService {
   final StreamController<String> _statusController = 
       StreamController<String>.broadcast();
   Stream<String> get statusStream => _statusController.stream;
+
+  /// Set the Riverpod ref for provider updates
+  void setRef(WidgetRef ref) {
+    _ref = ref;
+  }
 
   Future<void> setMode(RecordingMode mode) async {
     _logger.i('Switching recording mode to: $mode');
@@ -118,6 +126,16 @@ class RecordingModeService {
       
       if (recording != null) {
         _statusController.add('Recording saved: ${recording.fileName}');
+
+        // Refresh the recordings list in the UI
+        if (_ref != null) {
+          try {
+            _ref!.read(callRecordingProvider.notifier).loadRecordings();
+            _logger.i('Refreshed recordings list in UI');
+          } catch (refreshError) {
+            _logger.w('Failed to refresh recordings list: $refreshError');
+          }
+        }
       } else {
         _statusController.add('No recording to save');
       }
@@ -199,7 +217,17 @@ class RecordingModeService {
         );
         
         await CallRecordingService.instance.updateRecording(updatedRecording);
-        
+
+        // Refresh the recordings list in the UI
+        if (_ref != null) {
+          try {
+            _ref!.read(callRecordingProvider.notifier).loadRecordings();
+            _logger.i('Refreshed recordings list in UI');
+          } catch (refreshError) {
+            _logger.w('Failed to refresh recordings list: $refreshError');
+          }
+        }
+
         _statusController.add(
           'Demo complete! ${mockAnalysis.isScam ? "⚠️ SCAM DETECTED" : "✅ Safe call"}'
         );
@@ -365,6 +393,16 @@ class RecordingModeService {
       if (recording != null) {
         _statusController.add('✅ Recording saved: ${recording.fileName}');
         _logger.i('Automatic recording stopped and saved successfully');
+
+        // Refresh the recordings list in the UI
+        if (_ref != null) {
+          try {
+            _ref!.read(callRecordingProvider.notifier).loadRecordings();
+            _logger.i('Refreshed recordings list in UI');
+          } catch (refreshError) {
+            _logger.w('Failed to refresh recordings list: $refreshError');
+          }
+        }
 
         // Trigger analysis if backend is available
         try {
